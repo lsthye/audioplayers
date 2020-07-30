@@ -1,11 +1,14 @@
 package xyz.luan.audioplayers;
 
+import android.app.Activity;
+import android.app.Application;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.PowerManager;
 import android.content.Context;
+import android.util.Log;
 
 import java.io.IOException;
 
@@ -17,6 +20,7 @@ public class WrappedMediaPlayer extends Player implements MediaPlayer.OnPrepared
     private double volume = 1.0;
     private boolean respectSilence;
     private boolean stayAwake;
+    private boolean earpiece;
     private ReleaseMode releaseMode = ReleaseMode.RELEASE;
 
     private boolean released = true;
@@ -67,11 +71,12 @@ public class WrappedMediaPlayer extends Player implements MediaPlayer.OnPrepared
     }
 
     @Override
-    void configAttributes(boolean respectSilence, boolean stayAwake, Context context) {
+    void configAttributes(boolean respectSilence, boolean stayAwake, boolean earpiece, Context context) {
+        this.earpiece = earpiece;
         if (this.respectSilence != respectSilence) {
             this.respectSilence = respectSilence;
             if (!this.released) {
-                setAttributes(player);
+                setAttributes(player, context);
             }
         }
         if (this.stayAwake != stayAwake) {
@@ -223,7 +228,7 @@ public class WrappedMediaPlayer extends Player implements MediaPlayer.OnPrepared
         MediaPlayer player = new MediaPlayer();
         player.setOnPreparedListener(this);
         player.setOnCompletionListener(this);
-        setAttributes(player);
+        setAttributes(player, ref.getActivity());
         player.setVolume((float) volume, (float) volume);
         player.setLooping(this.releaseMode == ReleaseMode.LOOP);
         return player;
@@ -238,16 +243,37 @@ public class WrappedMediaPlayer extends Player implements MediaPlayer.OnPrepared
     }
 
     @SuppressWarnings("deprecation")
-    private void setAttributes(MediaPlayer player) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            player.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(respectSilence ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-            );
+    private void setAttributes(MediaPlayer player, Context context) {
+        Log.e("MEDIAPLAYER 3", this.earpiece + "");
+        if (this.earpiece) {
+            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+            audioManager.setSpeakerphoneOn(false);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                player.setAudioAttributes(new AudioAttributes.Builder()
+                        .setLegacyStreamType(AudioManager.STREAM_VOICE_CALL)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                );
+            } else {
+                // This method is deprecated but must be used on older devices
+                player.setAudioStreamType(AudioManager.STREAM_VOICE_CALL);
+            }
         } else {
-            // This method is deprecated but must be used on older devices
-            player.setAudioStreamType(respectSilence ? AudioManager.STREAM_RING : AudioManager.STREAM_MUSIC);
+            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            audioManager.setMode(AudioManager.MODE_NORMAL);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                player.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(respectSilence ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_MEDIA)
+                        .setLegacyStreamType(respectSilence ? AudioManager.STREAM_RING : AudioManager.STREAM_MUSIC)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                );
+            } else {
+                // This method is deprecated but must be used on older devices
+                player.setAudioStreamType(respectSilence ? AudioManager.STREAM_RING : AudioManager.STREAM_MUSIC);
+            }
         }
     }
 

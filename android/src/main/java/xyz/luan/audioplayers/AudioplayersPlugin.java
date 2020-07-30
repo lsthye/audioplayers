@@ -24,6 +24,10 @@ public class AudioplayersPlugin implements MethodCallHandler {
     private Runnable positionUpdates;
     private final Activity activity;
 
+    public Activity getActivity() {
+        return activity;
+    }
+
     public static void registerWith(final Registrar registrar) {
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "xyz.luan/audioplayers");
         channel.setMethodCallHandler(new AudioplayersPlugin(channel, registrar.activity()));
@@ -57,7 +61,8 @@ public class AudioplayersPlugin implements MethodCallHandler {
                 final boolean respectSilence = call.argument("respectSilence");
                 final boolean isLocal = call.argument("isLocal");
                 final boolean stayAwake = call.argument("stayAwake");
-                player.configAttributes(respectSilence, stayAwake, activity.getApplicationContext());
+                final boolean earpiece = call.argument("earpiece");
+                player.configAttributes(respectSilence, stayAwake, earpiece, activity.getApplicationContext());
                 player.setVolume(volume);
                 player.setUrl(url, isLocal);
                 if (position != null && !mode.equals("PlayerMode.LOW_LATENCY")) {
@@ -207,7 +212,7 @@ public class AudioplayersPlugin implements MethodCallHandler {
                     final int time = player.getCurrentPosition();
                     channel.invokeMethod("audio.onDuration", buildArguments(key, duration));
                     channel.invokeMethod("audio.onCurrentPosition", buildArguments(key, time));
-                } catch(UnsupportedOperationException e) {
+                } catch (UnsupportedOperationException e) {
 
                 }
             }
